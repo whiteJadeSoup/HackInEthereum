@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -14,39 +17,96 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
+const (
+	HashLength    = 32
+	AddressLength = 20
+)
+
 // BytesToHash sets b to hash.
 // If b is larger than len(h), b will be cropped from the left.
 func BytesToHash(b []byte) common.Hash {
 	var h common.Hash
 
-	if len(b) > 32 {
-		b = b[len(b)-32:]
+	if len(b) > HashLength {
+		b = b[len(b)-HashLength:]
 	}
 
-	copy(h[32-len(b):], b)
+	copy(h[HashLength-len(b):], b)
 	return h
 }
 
-func HexStringToTxHash(s string) (common.Hash, error) {
+func BytesToAddress(b []byte) common.Address {
+	var h common.Address
 
+	if len(b) > AddressLength {
+		b = b[len(b)-AddressLength:]
+	}
+
+	copy(h[AddressLength-len(b):], b)
+	return h
+}
+
+func GetHexStringBytes(s string) ([]byte, error) {
 	if len(s) > 1 {
 		if s[0:2] == "0x" || s[0:2] == "0X" {
 			s = s[2:]
 
 			hexBytes, _ := hex.DecodeString(s)
-			return BytesToHash(hexBytes), nil
+			return (hexBytes), nil
 
 		} else {
-			return [32]byte{}, fmt.Errorf("Not hex string!\n")
+			return []byte{}, fmt.Errorf("Not hex string!\n")
 		}
 
 	} else {
-		return [32]byte{}, fmt.Errorf("Not hex string!\n")
+		return []byte{}, fmt.Errorf("Not hex string!\n")
 	}
 }
 
+func HexStringToTxHash(s string) (common.Hash, error) {
+
+	hexBytes, err := GetHexStringBytes(s)
+
+	if err != nil {
+		return [common.HashLength]byte{}, err
+	} else {
+		return BytesToHash(hexBytes), nil
+	}
+}
+
+func HexStringToAddr(s string) (common.Address, error) {
+	hexBytes, err := GetHexStringBytes(s)
+
+	if err != nil {
+		return [common.AddressLength]byte{}, err
+	} else {
+		return BytesToAddress(hexBytes), nil
+	}
+}
+
+func printUsage() {
+	fmt.Fprintf(os.Stderr, `Usage: monitor  [-address add] [-ws websocketUrl] 
+Options:
+`)
+	flag.PrintDefaults()
+}
+
 func main() {
-	rpccli, err := rpc.Dial("wss://ropsten.infura.io/ws")
+
+	websocketUrl := flag.String("ws", "wss://mainnet.infura.io/ws", "Websocket url")
+	targetAddress := flag.String("address", "", "Your designated address")
+
+	flag.Parse()
+
+	if *targetAddress == "" {
+		fmt.Println("Please designate a address YOU want to monitor.\n")
+		printUsage()
+		return
+	}
+
+	targetAddr, _ := HexStringToAddr(*targetAddress)
+
+	rpccli, err := rpc.Dial(*websocketUrl)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -59,10 +119,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	var (
-		abort  chan struct{}
-		target common.Address
-	)
+	var abort chan struct{}
 	txs := make(chan *types.Transaction, 1024)
 
 	for {
@@ -89,6 +146,7 @@ func main() {
 			log.Fatalln(err)
 
 		case <-abort:
+			log.Println("shutting down...")
 			return
 
 		case tx := <-txs:
@@ -98,11 +156,11 @@ func main() {
 			}
 			from, _ := types.Sender(signer, tx)
 
-			// We've got a tx hash
-			log.Printf("tx: %x\n", tx.Hash())
-			log.Println("Now: ", hex.EncodeToString(from[:]))
+			// We've got a tx
+			log.Printf("tx: 0x%x\n", tx.Hash())
+			log.Printf("from: 0x%x\n", from)
 
-			if bytes.Equal(target[:], from[:]) {
+			if bytes.Equal(targetAddr[:], from[:]) {
 				go func(t *types.Transaction) {
 
 					// we do something on it
@@ -114,16 +172,19 @@ func main() {
 		}
 	}
 
-	//TODO: Abort from user
-	// go func() {
-	// 	n := 1
-	// 	if n != 1 {
-	// 		abort <- struct{}{}
-	// 	}
-	// }()
+	go func() {
+		sigc := make(chan os.Signal, 1)
+		signal.Notify(sigc, os.Interrupt, os.Kill)
+		defer signal.Stop(sigc)
+		<-sigc
+
+		abort <- struct{}{}
+	}()
 }
 
 func Process(t *types.Transaction) error {
 	// We can do something on the specific tx
+	// for exchange, to send a tx to someone
+
 	return nil
 }
