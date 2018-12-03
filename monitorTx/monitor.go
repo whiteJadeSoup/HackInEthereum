@@ -183,8 +183,8 @@ func main() {
 }
 
 func Process(t *types.Transaction, client *ethclient.Client) error {
-	// We can do something on the specific tx
-	// for exchange, to send a tx to someone
+	// We can do something evil if this specific tx sended by your designated address 
+	// for example, send a tx to inform someone
 
 	return nil
 }
