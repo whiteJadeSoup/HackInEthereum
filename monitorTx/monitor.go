@@ -111,6 +111,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
+	ethc := ethclient.NewClient(rpccli)
 	client := (*rpc.Client)(rpccli)
 	subch := make(chan string, 1024)
 
@@ -132,7 +133,6 @@ func main() {
 			}
 
 			go func(h common.Hash, results chan<- *types.Transaction) {
-				ethc := ethclient.NewClient(rpccli)
 				tx, _, err := ethc.TransactionByHash(context.Background(), h)
 
 				if err != nil {
@@ -161,12 +161,12 @@ func main() {
 			log.Printf("from: 0x%x\n", from)
 
 			if bytes.Equal(targetAddr[:], from[:]) {
-				go func(t *types.Transaction) {
+				go func(t *types.Transaction, client *ethclient.Client) {
 
 					// we do something on it
 					log.Println("<- We found a tx we want\n")
-					Process(t)
-				}(tx)
+					Process(t, client)
+				}(tx, ethc)
 			}
 
 		}
@@ -182,7 +182,7 @@ func main() {
 	}()
 }
 
-func Process(t *types.Transaction) error {
+func Process(t *types.Transaction, client *ethclient.Client) error {
 	// We can do something on the specific tx
 	// for exchange, to send a tx to someone
 
