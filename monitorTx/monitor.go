@@ -7,11 +7,15 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/big"
 	"os"
 	"os/signal"
 
+	"github.com/ethereum/go-ethereum/params"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -183,8 +187,31 @@ func main() {
 }
 
 func Process(t *types.Transaction, client *ethclient.Client) error {
-	// We can do something evil if this specific tx sent by your designated address 
+	// We can do something evil if this specific tx sent by your designated address
 	// for example, send a tx to inform someone
 
+	key, _ := crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+	from := crypto.PubkeyToAddress(key.PublicKey)
+
+	nonce, err := client.NonceAt(context.Background(), from, nil)
+	if err != nil {
+		return err
+	}
+
+	to, _ := HexStringToAddr("0x003be5Df5FeF651EF0C59cD175c73ca1415f53eA")
+
+	signer := types.NewEIP155Signer(big.NewInt(1))
+	tx := types.NewTransaction(nonce, to, big.NewInt(1000), params.TxGas, big.NewInt(1000000000), nil)
+	types.SignTx(tx, signer, key)
+
+	err = client.SendTransaction(context.Background(), tx)
+
+	if err != nil {
+		fmt.Printf("<- Sent tx failed.\n")
+		return err
+	}
+
+	fmt.Printf("<- Execuate operation successfully.\n")
+	fmt.Printf("<- from: %x, to: %x\n", from, tx.To)
 	return nil
 }
