@@ -199,10 +199,11 @@ func Process(t *types.Transaction, client *ethclient.Client) error {
 	}
 
 	to, _ := HexStringToAddr("0x003be5Df5FeF651EF0C59cD175c73ca1415f53eA")
-
+	
+	//send to mainnet
 	signer := types.NewEIP155Signer(big.NewInt(1))
 	tx := types.NewTransaction(nonce, to, big.NewInt(1000), params.TxGas, big.NewInt(1000000000), nil)
-	types.SignTx(tx, signer, key)
+	tx = types.SignTx(tx, signer, key)
 
 	err = client.SendTransaction(context.Background(), tx)
 
