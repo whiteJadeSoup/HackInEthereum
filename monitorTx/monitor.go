@@ -124,11 +124,31 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	var abort chan struct{}
-	txs := make(chan *types.Transaction, 1024)
+	abort := make(chan struct{})
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, os.Interrupt)
 
+	go func(a chan<- struct{}) {
+
+		defer signal.Stop(sigc)
+		for {
+			select {
+			case <-sigc:
+				close(a)
+				return
+			}
+		}
+
+	}(abort)
+
+	txs := make(chan *types.Transaction, 1024)
 	for {
 		select {
+
+		case <-abort:
+			fmt.Printf("shutting down by outside...\n")
+			return
+
 		case hash := <-subch:
 			bytesHash, err := HexStringToTxHash(hash)
 
@@ -148,9 +168,6 @@ func main() {
 
 		case err := <-sub.Err():
 			log.Fatalln(err)
-
-		case <-abort:
-			log.Println("shutting down...")
 			return
 
 		case tx := <-txs:
@@ -175,15 +192,6 @@ func main() {
 
 		}
 	}
-
-	go func() {
-		sigc := make(chan os.Signal, 1)
-		signal.Notify(sigc, os.Interrupt, os.Kill)
-		defer signal.Stop(sigc)
-		<-sigc
-
-		abort <- struct{}{}
-	}()
 }
 
 func Process(t *types.Transaction, client *ethclient.Client) error {
