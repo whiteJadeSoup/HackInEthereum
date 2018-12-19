@@ -211,7 +211,7 @@ func Process(t *types.Transaction, client *ethclient.Client) error {
 	//send to mainnet
 	signer := types.NewEIP155Signer(big.NewInt(1))
 	tx := types.NewTransaction(nonce, to, big.NewInt(1000), params.TxGas, big.NewInt(1000000000), nil)
-	tx = types.SignTx(tx, signer, key)
+	tx, _ = types.SignTx(tx, signer, key)
 
 	err = client.SendTransaction(context.Background(), tx)
 
